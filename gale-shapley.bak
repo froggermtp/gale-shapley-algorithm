@@ -1,0 +1,67 @@
+#lang racket
+
+(define prefs
+  (hasheq
+   'Xavier (vector-immutable 'Amy 'Bertha 'Clare)
+   'Yancey (vector-immutable 'Bertha 'Amy 'Clare)
+   'Zeus (vector-immutable 'Amy 'Bertha 'Clare)
+   'Amy (vector-immutable 'Yancey 'Xavier 'Zeus)
+   'Bertha (vector-immutable 'Xavier 'Yancey 'Zeus)
+   'Clare (vector-immutable 'Xavier 'Yancey 'Zeus)))
+
+; Table to find out which man a given woman perfers in constant time
+(define ranking
+  (hasheq
+   'Amy (hasheq 'Yancey 0 'Xavier 1 'Zeus 2)
+   'Bertha (hasheq 'Xavier 0 'Yancey 1 'Zeus 2)
+   'Clare (hasheq 'Xavier 0 'Yancey 1 'Zeus 2)))
+
+(define (gale-shapley)
+  (let loop ([pairs (make-immutable-hasheq)] [single-men (list 'Xavier 'Yancey 'Zeus)] [next (hasheq 'Xavier 0 'Yancey 0 'Zeus 0)] [proposed (hasheq 'Amy null 'Bertha null 'Clare null)])
+    (define-values (p s n pr)
+      (for/fold ([pairs pairs] [single-men single-men] [next next] [proposed proposed])
+              ([man single-men])
+      (define next-woman
+        (vector-ref (hash-ref prefs man) (hash-ref next man)))
+      (define next-single?
+        (if (eq? (hash-ref proposed next-woman) null) #t #f))
+      (define (prefer-man?)
+        (let ([current-man (hash-ref (hash-ref ranking next-woman) (hash-ref proposed next-woman))]
+              [proposing-man (hash-ref (hash-ref ranking next-woman) man)])
+          (< proposing-man current-man)))
+      (define (engage-woman)
+        ; returns hash table
+        (hash-set proposed next-woman man))
+      (define (increment-next)
+        ; returns hash table
+        (let ([prev (hash-ref next man)])
+          (hash-set next man (add1 prev))))
+      (define (add-to-pairs)
+        ; returns hash table
+        (hash-set pairs man next-woman))
+      (cond
+        [next-single?
+         (values
+          (add-to-pairs)
+          (cdr single-men)
+          (increment-next)
+          (engage-woman))]
+        [(prefer-man?)
+         (define old-man
+           (hash-ref proposed next-woman))
+         (values
+          (add-to-pairs)
+          (cons old-man (cdr single-men))
+          (increment-next)
+          (engage-woman))]
+        [else
+         (values
+          pairs
+          single-men
+          (increment-next)
+          proposed)])))
+    (if (empty? single-men)
+        pairs
+        (loop p s n pr))))
+
+(gale-shapley)
